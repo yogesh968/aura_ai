@@ -1,0 +1,526 @@
+// AURA AI — PostgreSQL schema
+//
+// Conventions
+// - Every user-owned row carries userId and is only ever queried with it (ownership).
+// - "Syncable" tables share an envelope: id (client-generated UUID), createdAt,
+//   updatedAt (client modification time), deletedAt (tombstone), version and seq.
+//   A trigger (see migrations) bumps `version` and assigns a new `seq` from the
+//   global `sync_seq` sequence on every insert/update; clients pull by seq.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String?   @unique
+  passwordHash String?
+  name         String
+  isGuest      Boolean   @default(false)
+  preferences  Json      @default("{}")
+  pushToken    String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastSeenAt   DateTime?
+
+  refreshTokens    RefreshToken[]
+  conversations    Conversation[]
+  memories         Memory[]
+  documents        Document[]
+  pendingActions   PendingAction[]
+  toolExecutions   ToolExecution[]
+  automations      Automation[]
+  automationRuns   AutomationRun[]
+  notifications    InboxNotification[]
+  tasks            Task[]
+  events           CalendarEvent[]
+  reminders        Reminder[]
+  notes            Note[]
+  projects         Project[]
+  habits           Habit[]
+  habitLogs        HabitLog[]
+  wellnessEntries  WellnessEntry[]
+  transactions     FinanceTransaction[]
+  budgets          Budget[]
+  recurringPayments RecurringPayment[]
+  goals            Goal[]
+  routines         Routine[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @db.Uuid
+  tokenHash    String    @unique
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?   @db.Uuid
+  userAgent    String?
+  createdAt    DateTime  @default(now())
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Conversations & agent
+// ---------------------------------------------------------------------------
+
+model Conversation {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  title     String    @default("New conversation")
+  /// Tool set is frozen per conversation (prefix stability); new prefs apply to new chats.
+  webSearch Boolean   @default(false)
+  /// After compaction, only messages created at/after this instant are replayed.
+  replayFrom DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  Message[]
+
+  @@index([userId, updatedAt])
+  @@map("conversations")
+}
+
+model Message {
+  id              String       @id @default(uuid()) @db.Uuid
+  conversationId  String       @db.Uuid
+  userId          String       @db.Uuid
+  /// user | assistant | event (event = server note, e.g. a confirmed action)
+  role            String
+  text            String
+  /// Exact Claude API messages produced for this turn, replayed append-only.
+  apiMessages     Json         @default("[]")
+  toolCalls       Json         @default("[]")
+  sources         Json         @default("[]")
+  status          String       @default("complete")
+  clientMessageId String?      @db.Uuid
+  createdAt       DateTime     @default(now())
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clientMessageId])
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+model PendingAction {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @db.Uuid
+  conversationId String?   @db.Uuid
+  toolName       String
+  input          Json
+  label          String
+  description    String
+  /// pending | confirmed | rejected | expired | failed
+  status         String    @default("pending")
+  result         String?
+  createdAt      DateTime  @default(now())
+  expiresAt      DateTime
+  decidedAt      DateTime?
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("pending_actions")
+}
+
+/// Audit log of every tool invocation (chat agent and automations).
+model ToolExecution {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @db.Uuid
+  conversationId  String?  @db.Uuid
+  automationRunId String?  @db.Uuid
+  toolName        String
+  /// succeeded | failed | awaiting_confirmation | rejected
+  status          String
+  summary         String
+  error           String?
+  durationMs      Int
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("tool_executions")
+}
+
+model Memory {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  content   String
+  category  String   @default("other")
+  /// user | assistant (assistant memories are only stored after user confirmation)
+  source    String   @default("user")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("memories")
+}
+
+model Document {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  name      String
+  mimeType  String
+  sizeBytes Int
+  data      Bytes
+  text      String?
+  summary   String?
+  /// uploaded | processing | ready | failed
+  status    String   @default("uploaded")
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("documents")
+}
+
+model Automation {
+  id          String          @id @default(uuid()) @db.Uuid
+  userId      String          @db.Uuid
+  name        String
+  description String?
+  trigger     Json
+  steps       Json
+  enabled     Boolean         @default(true)
+  maxRetries  Int             @default(1)
+  nextRunAt   DateTime?
+  lastRunAt   DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  runs        AutomationRun[]
+
+  @@index([enabled, nextRunAt])
+  @@index([userId])
+  @@map("automations")
+}
+
+model AutomationRun {
+  id              String     @id @default(uuid()) @db.Uuid
+  automationId    String     @db.Uuid
+  userId          String     @db.Uuid
+  /// queued | running | succeeded | failed | cancelled | partial
+  status          String     @default("queued")
+  /// schedule | manual | retry
+  trigger         String
+  attempt         Int        @default(1)
+  steps           Json       @default("[]")
+  error           String?
+  cancelRequested Boolean    @default(false)
+  /// Queued runs (retries) don't start before this time.
+  notBefore       DateTime?
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  createdAt       DateTime   @default(now())
+  automation      Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@map("automation_runs")
+}
+
+/// In-app notification inbox (automation output); also pushed when a push token exists.
+model InboxNotification {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  title     String
+  body      String
+  kind      String    @default("info")
+  data      Json      @default("{}")
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("inbox_notifications")
+}
+
+// ---------------------------------------------------------------------------
+// Syncable entities
+// ---------------------------------------------------------------------------
+
+model Task {
+  id              String    @id @db.Uuid
+  userId          String    @db.Uuid
+  createdAt       DateTime
+  updatedAt       DateTime
+  deletedAt       DateTime?
+  version         Int       @default(1)
+  seq             BigInt    @default(dbgenerated("nextval('sync_seq')"))
+  title           String
+  notes           String?
+  priority        String
+  status          String
+  dueAt           DateTime?
+  remindAt        DateTime?
+  recurrence      String
+  projectId       String?   @db.Uuid
+  tags            String[]
+  completedAt     DateTime?
+  estimateMinutes Int?
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, seq])
+  @@index([userId, dueAt])
+  @@map("tasks")
+}
+
+model CalendarEvent {
+  id                    String    @id @db.Uuid
+  userId                String    @db.Uuid
+  createdAt             DateTime
+  updatedAt             DateTime
+  deletedAt             DateTime?
+  version               Int       @default(1)
+  seq                   BigInt    @default(dbgenerated("nextval('sync_seq')"))
+  title                 String
+  startAt               DateTime
+  endAt                 DateTime?
+  allDay                Boolean
+  location              String?
+  notes                 String?
+  kind                  String
+  recurrence            String
+  reminderMinutesBefore Int?
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, seq])
+  @@index([userId, startAt])
+  @@map("events")
+}
+
+model Reminder {
+  id         String    @id @db.Uuid
+  userId     String    @db.Uuid
+  createdAt  DateTime
+  updatedAt  DateTime
+  deletedAt  DateTime?
+  version    Int       @default(1)
+  seq        BigInt    @default(dbgenerated("nextval('sync_seq')"))
+  title      String
+  remindAt   DateTime
+  recurrence String
+  done       Boolean
+  notes      String?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, seq])
+  @@index([userId, remindAt])
+  @@map("reminders")
+}
+
+model Note {
+  id        String    @id @db.Uuid
+  userId    String    @db.Uuid
+  createdAt DateTime
+  updatedAt DateTime
+  deletedAt DateTime?
+  version   Int       @default(1)
+  seq       BigInt    @default(dbgenerated("nextval('sync_seq')"))
+  title     String
+  content   String
+  tags      String[]
+  pinned    Boolean
+  kind      String
+  mood      Int?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, seq])
+  @@map("notes")
+}
+
+model Project {
+  id          String    @id @db.Uuid
+  userId      String    @db.Uuid
+  createdAt   DateTime
+  updatedAt   DateTime
+  deletedAt   DateTime?
+  version     Int       @default(1)
+  seq         BigInt    @default(dbgenerated("nextval('sync_seq')"))
+  name        String
+  description String?
+  color       String?
+  deadline    DateTime?
+  status      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, seq])
+  @@map("projects")
+}
+
+model Habit {
+  id        String    @id @db.Uuid
+  userId    String    @db.Uuid
+  createdAt DateTime
+  updatedAt DateTime
+  deletedAt DateTime?
+  version   Int       @default(1)
+  seq       BigInt    @default(dbgenerated("nextval('sync_seq')"))
+  name      String
+  icon      String?
+  color     String?
+  frequency String
+  target    Float
+  unit      String?
+  archived  Boolean
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, seq])
+  @@map("habits")
+}
+
+model HabitLog {
+  id        String    @id @db.Uuid
+  userId    String    @db.Uuid
+  createdAt DateTime
+  updatedAt DateTime
+  deletedAt DateTime?
+  version   Int       @default(1)
+  seq       BigInt    @default(dbgenerated("nextval('sync_seq')"))
+  habitId   String    @db.Uuid
+  date      String
+  value     Float
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, seq])
+  @@index([userId, habitId, date])
+  @@map("habit_logs")
+}
+
+model WellnessEntry {
+  id        String    @id @db.Uuid
+  userId    String    @db.Uuid
+  createdAt DateTime
+  updatedAt DateTime
+  deletedAt DateTime?
+  version   Int       @default(1)
+  seq       BigInt    @default(dbgenerated("nextval('sync_seq')"))
+  metric    String
+  value     Float
+  unit      String
+  date      String
+  note      String?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, seq])
+  @@index([userId, date])
+  @@map("wellness_entries")
+}
+
+model FinanceTransaction {
+  id          String    @id @db.Uuid
+  userId      String    @db.Uuid
+  createdAt   DateTime
+  updatedAt   DateTime
+  deletedAt   DateTime?
+  version     Int       @default(1)
+  seq         BigInt    @default(dbgenerated("nextval('sync_seq')"))
+  kind        String
+  amountMinor BigInt
+  currency    String
+  category    String
+  note        String?
+  occurredAt  DateTime
+  recurringId String?   @db.Uuid
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, seq])
+  @@index([userId, occurredAt])
+  @@map("transactions")
+}
+
+model Budget {
+  id         String    @id @db.Uuid
+  userId     String    @db.Uuid
+  createdAt  DateTime
+  updatedAt  DateTime
+  deletedAt  DateTime?
+  version    Int       @default(1)
+  seq        BigInt    @default(dbgenerated("nextval('sync_seq')"))
+  category   String
+  limitMinor BigInt
+  currency   String
+  period     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, seq])
+  @@map("budgets")
+}
+
+model RecurringPayment {
+  id               String    @id @db.Uuid
+  userId           String    @db.Uuid
+  createdAt        DateTime
+  updatedAt        DateTime
+  deletedAt        DateTime?
+  version          Int       @default(1)
+  seq              BigInt    @default(dbgenerated("nextval('sync_seq')"))
+  name             String
+  kind             String
+  amountMinor      BigInt
+  currency         String
+  category         String
+  frequency        String
+  nextDueAt        DateTime
+  active           Boolean
+  remindDaysBefore Int
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, seq])
+  @@map("recurring_payments")
+}
+
+model Goal {
+  id           String    @id @db.Uuid
+  userId       String    @db.Uuid
+  createdAt    DateTime
+  updatedAt    DateTime
+  deletedAt    DateTime?
+  version      Int       @default(1)
+  seq          BigInt    @default(dbgenerated("nextval('sync_seq')"))
+  title        String
+  kind         String
+  targetValue  Float?
+  currentValue Float
+  unit         String?
+  deadline     DateTime?
+  status       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, seq])
+  @@map("goals")
+}
+
+model Routine {
+  id        String    @id @db.Uuid
+  userId    String    @db.Uuid
+  createdAt DateTime
+  updatedAt DateTime
+  deletedAt DateTime?
+  version   Int       @default(1)
+  seq       BigInt    @default(dbgenerated("nextval('sync_seq')"))
+  name      String
+  timeOfDay String
+  time      String?
+  days      Int[]
+  steps     String[]
+  active    Boolean
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, seq])
+  @@map("routines")
+}

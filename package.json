@@ -1,0 +1,26 @@
+{
+  "name": "aura-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AURA AI — personal AI assistant for Android (Expo app + Fastify backend)",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "postinstall": "npm run build -w @aura/shared",
+    "build:shared": "npm run build -w @aura/shared",
+    "db:start": "npm run db:start -w @aura/backend",
+    "db:migrate": "npm run db:migrate -w @aura/backend",
+    "db:seed": "npm run db:seed -w @aura/backend",
+    "dev:backend": "npm run dev -w @aura/backend",
+    "dev:mobile": "npm run start -w @aura/mobile",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "check": "npm run typecheck && npm run lint && npm run test"
+  }
+}

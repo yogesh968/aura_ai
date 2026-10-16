@@ -1,0 +1,15 @@
+# Optional: PostgreSQL via Docker instead of the embedded dev database (`npm run db:start`).
+# DATABASE_URL=postgresql://aura:aura@localhost:5433/aura
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: aura
+      POSTGRES_PASSWORD: aura
+      POSTGRES_DB: aura
+    ports:
+      - "5433:5432"
+    volumes:
+      - aura-pg:/var/lib/postgresql/data
+volumes:
+  aura-pg:
