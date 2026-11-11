@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, View, type StyleProp, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/theme/ThemeProvider';
-import { elevation } from '@/theme/tokens';
+import { continuous } from '@/theme/tokens';
 import { haptics } from '@/lib/haptics';
 
 export interface CardProps {
@@ -16,7 +16,7 @@ export interface CardProps {
 }
 
 export function Card({ children, onPress, onLongPress, accessibilityLabel, padded = true, style, tone = 'default' }: CardProps) {
-  const { colors, radius, dark } = useTheme();
+  const { colors, radius } = useTheme();
   const bg = {
     default: colors.surface,
     alt: colors.surfaceAlt,
@@ -26,9 +26,8 @@ export function Card({ children, onPress, onLongPress, accessibilityLabel, padde
     danger: colors.dangerSoft,
   }[tone];
   const base: StyleProp<ViewStyle> = [
-    styles.card,
-    { backgroundColor: bg, borderRadius: radius.lg, borderColor: colors.border, padding: padded ? 16 : 0 },
-    !dark && tone === 'default' ? elevation.card : null,
+    continuous,
+    { backgroundColor: bg, borderRadius: radius.lg, padding: padded ? 16 : 0 },
     style,
   ];
   if (!onPress && !onLongPress) return <View style={base}>{children}</View>;
@@ -45,7 +44,7 @@ export function Card({ children, onPress, onLongPress, accessibilityLabel, padde
           : undefined
       }
       onLongPress={onLongPress}
-      style={({ pressed }) => [base, pressed ? { opacity: 0.85, transform: [{ scale: 0.99 }] } : null]}
+      style={({ pressed }) => [base, pressed ? { opacity: 0.7 } : null]}
     >
       {children}
     </Pressable>
@@ -56,7 +55,7 @@ export function Card({ children, onPress, onLongPress, accessibilityLabel, padde
 export function GradientCard({ children, style, onPress, accessibilityLabel }: { children: ReactNode; style?: StyleProp<ViewStyle>; onPress?: () => void; accessibilityLabel?: string }) {
   const { colors, radius } = useTheme();
   const content = (
-    <LinearGradient colors={colors.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[{ borderRadius: radius.xl, padding: 20 }, style]}>
+    <LinearGradient colors={colors.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[continuous, { borderRadius: radius.xl, padding: 20 }, style]}>
       {children}
     </LinearGradient>
   );
@@ -67,7 +66,3 @@ export function GradientCard({ children, style, onPress, accessibilityLabel }: {
     </Pressable>
   );
 }
-
-const styles = StyleSheet.create({
-  card: { borderWidth: StyleSheet.hairlineWidth },
-});

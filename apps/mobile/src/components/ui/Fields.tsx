@@ -1,7 +1,7 @@
 import { forwardRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Switch, TextInput, View, type TextInputProps } from 'react-native';
 import { useTheme } from '@/theme/ThemeProvider';
-import { MIN_TOUCH } from '@/theme/tokens';
+import { continuous, palette } from '@/theme/tokens';
 import { haptics } from '@/lib/haptics';
 import { Icon, type IconName } from './Icon';
 import { Text } from './Text';
@@ -23,18 +23,19 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
   return (
     <View style={{ gap: 6 }}>
       {label ? (
-        <Text variant="small" color="textMuted">
+        <Text variant="overline" color="textMuted" style={{ marginLeft: 16 }}>
           {label}
         </Text>
       ) : null}
       <View
         style={[
           styles.field,
+          continuous,
           {
             borderRadius: radius.md,
             backgroundColor: colors.surface,
-            borderColor: error ? colors.danger : focused ? colors.primary : colors.border,
-            minHeight: multiline ? 96 : MIN_TOUCH,
+            borderColor: error ? colors.danger : focused ? colors.primary : 'transparent',
+            minHeight: multiline ? 96 : 50,
             alignItems: multiline ? 'flex-start' : 'center',
           },
         ]}
@@ -68,11 +69,11 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
         {right}
       </View>
       {error ? (
-        <Text variant="small" color="danger" accessibilityLiveRegion="polite">
+        <Text variant="small" color="danger" accessibilityLiveRegion="polite" style={{ marginLeft: 16 }}>
           {error}
         </Text>
       ) : helper ? (
-        <Text variant="small" color="textSubtle">
+        <Text variant="small" color="textSubtle" style={{ marginLeft: 16 }}>
           {helper}
         </Text>
       ) : null}
@@ -81,7 +82,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
 });
 
 export function ToggleRow({ label, description, value, onChange, disabled, icon }: { label: string; description?: string; value: boolean; onChange: (v: boolean) => void; disabled?: boolean; icon?: IconName }) {
-  const { colors } = useTheme();
+  const { colors, dark } = useTheme();
   return (
     <Pressable
       accessibilityRole="switch"
@@ -107,8 +108,10 @@ export function ToggleRow({ label, description, value, onChange, disabled, icon 
         value={value}
         onValueChange={onChange}
         disabled={disabled}
-        trackColor={{ true: colors.primary, false: colors.border }}
-        thumbColor={colors.surface}
+        // iOS switches are green regardless of the app tint.
+        trackColor={{ true: dark ? palette.greenDark : palette.green, false: colors.surfacePressed }}
+        thumbColor={palette.white}
+        ios_backgroundColor={colors.surfacePressed}
         importantForAccessibility="no"
       />
     </Pressable>
@@ -128,23 +131,24 @@ export function SelectRow({ label, value, onPress, icon, placeholder = 'Choose' 
       }}
       style={({ pressed }) => [
         styles.select,
-        { borderRadius: radius.md, borderColor: colors.border, backgroundColor: pressed ? colors.surfacePressed : colors.surface },
+        continuous,
+        { borderRadius: radius.md, backgroundColor: pressed ? colors.surfacePressed : colors.surface },
       ]}
     >
-      {icon ? <Icon name={icon} size={18} color="textMuted" /> : null}
-      <Text variant="body" color="textMuted" style={{ flex: 1 }}>
+      {icon ? <Icon name={icon} size={20} color="primary" /> : null}
+      <Text variant="body" style={{ flex: 1 }}>
         {label}
       </Text>
-      <Text variant="body" color={value ? 'text' : 'textSubtle'} numberOfLines={1} style={{ maxWidth: '55%' }}>
+      <Text variant="body" color={value ? 'textMuted' : 'textSubtle'} numberOfLines={1} style={{ maxWidth: '55%' }}>
         {value ?? placeholder}
       </Text>
-      <Icon name="chevron-forward" size={16} color="textSubtle" />
+      <Icon name="chevron-forward" size={18} color="border" />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  field: { flexDirection: 'row', gap: 10, borderWidth: 1, paddingHorizontal: 14 },
-  toggle: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 6 },
-  select: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, borderWidth: 1, paddingHorizontal: 14 },
+  field: { flexDirection: 'row', gap: 10, borderWidth: 1, paddingHorizontal: 16 },
+  toggle: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 50, paddingVertical: 6 },
+  select: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 50, paddingHorizontal: 16 },
 });

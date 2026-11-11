@@ -1,7 +1,7 @@
 import type { ComponentProps } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, Text, type IconName } from '@/components/ui';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -17,52 +17,61 @@ const TABS: Record<string, { label: string; icon: IconName; iconActive: IconName
   more: { label: 'More', icon: 'grid-outline', iconActive: 'grid' },
 };
 
-/** Custom tab bar with a raised assistant orb in the middle (long-press opens voice mode). */
+/**
+ * iOS-style tab bar: translucent material with a hairline top border, filled icon for the
+ * selected tab and small labels. Long-pressing the Aura tab opens voice mode.
+ */
 function AuraTabBar({ state, navigation }: TabBarProps) {
-  const { colors } = useTheme();
+  const { colors, dark } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  return (
-    <View style={[styles.bar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 8) }]} accessibilityRole="tablist">
-      {state.routes.map((route, index) => {
-        const meta = TABS[route.name];
-        if (!meta) return null;
-        const focused = state.index === index;
-        const onPress = () => {
-          haptics.tap();
-          const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-          if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params);
-        };
-        if (route.name === 'assistant') {
-          return (
-            <Pressable
-              key={route.key}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: focused }}
-              accessibilityLabel="Aura assistant"
-              accessibilityHint="Double tap to chat. Long press for voice mode."
-              onPress={onPress}
-              onLongPress={() => {
+  const barStyle = [styles.bar, { borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 6) }];
+  const tabs = state.routes.map((route, index) => {
+    const meta = TABS[route.name];
+    if (!meta) return null;
+    const focused = state.index === index;
+    const isAura = route.name === 'assistant';
+    const onPress = () => {
+      haptics.tap();
+      const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+      if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params);
+    };
+    return (
+      <Pressable
+        key={route.key}
+        accessibilityRole="tab"
+        accessibilityState={{ selected: focused }}
+        accessibilityLabel={isAura ? 'Aura assistant' : meta.label}
+        accessibilityHint={isAura ? 'Double tap to chat. Long press for voice mode.' : undefined}
+        onPress={onPress}
+        onLongPress={
+          isAura
+            ? () => {
                 haptics.medium();
                 router.push('/voice');
-              }}
-              style={styles.orbSlot}
-            >
-              <LinearGradient colors={colors.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.orb}>
-                <Icon name={focused ? meta.iconActive : meta.icon} size={26} color="#FFFFFF" />
-              </LinearGradient>
-            </Pressable>
-          );
+              }
+            : undefined
         }
-        return (
-          <Pressable key={route.key} accessibilityRole="tab" accessibilityState={{ selected: focused }} accessibilityLabel={meta.label} onPress={onPress} style={styles.tab}>
-            <Icon name={focused ? meta.iconActive : meta.icon} size={22} color={focused ? 'primary' : 'textSubtle'} />
-            <Text variant="small" color={focused ? 'primary' : 'textSubtle'} weight={focused ? '700' : '500'}>
-              {meta.label}
-            </Text>
-          </Pressable>
-        );
-      })}
+        style={styles.tab}
+      >
+        <Icon name={focused ? meta.iconActive : meta.icon} size={25} color={focused ? 'primary' : 'textSubtle'} />
+        <Text variant="small" color={focused ? 'primary' : 'textSubtle'} weight="500" style={styles.label}>
+          {meta.label}
+        </Text>
+      </Pressable>
+    );
+  });
+  // Real blur on iOS; Android's blur needs a BlurTargetView around the screens, so use a translucent fill there.
+  if (Platform.OS === 'ios') {
+    return (
+      <BlurView tint={dark ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight'} intensity={100} style={barStyle} accessibilityRole="tablist">
+        {tabs}
+      </BlurView>
+    );
+  }
+  return (
+    <View style={[barStyle, { backgroundColor: dark ? 'rgba(22,22,24,0.96)' : 'rgba(249,249,249,0.96)' }]} accessibilityRole="tablist">
+      {tabs}
     </View>
   );
 }
@@ -80,8 +89,7 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
-  bar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'flex-end', borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 6 },
-  tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2, minHeight: 52 },
-  orbSlot: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', minHeight: 52 },
-  orb: { width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', marginTop: -22, elevation: 6, shadowColor: '#7C5CFF', shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 6 } },
+  bar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 6 },
+  tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 1, minHeight: 48 },
+  label: { fontSize: 10, lineHeight: 12, letterSpacing: 0.1 },
 });

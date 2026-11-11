@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { useTheme } from '@/theme/ThemeProvider';
-import { MIN_TOUCH } from '@/theme/tokens';
+import { continuous, elevation, MIN_TOUCH } from '@/theme/tokens';
 import { haptics } from '@/lib/haptics';
 import { Icon, type IconName } from './Icon';
 import { Text } from './Text';
@@ -14,8 +14,8 @@ export function SectionHeader({ title, action, onAction }: { title: string; acti
         {title}
       </Text>
       {action && onAction ? (
-        <Pressable accessibilityRole="button" onPress={onAction} hitSlop={12}>
-          <Text variant="caption" color="primary" weight="600">
+        <Pressable accessibilityRole="button" onPress={onAction} hitSlop={12} style={({ pressed }) => ({ opacity: pressed ? 0.4 : 1 })}>
+          <Text variant="caption" color="primary">
             {action}
           </Text>
         </Pressable>
@@ -44,8 +44,8 @@ export function ListItem({ title, subtitle, icon, iconColor, left, right, onPres
   const content = (
     <>
       {left ?? (icon ? (
-        <View style={[styles.listIcon, { backgroundColor: iconColor ? `${iconColor}22` : colors.surfaceAlt }]}>
-          <Icon name={icon} size={18} color={iconColor ?? (destructive ? 'danger' : 'textMuted')} />
+        <View style={[styles.listIcon, continuous, { backgroundColor: iconColor ?? (destructive ? colors.danger : colors.primary) }]}>
+          <Icon name={icon} size={17} color="#FFFFFF" />
         </View>
       ) : null)}
       <View style={{ flex: 1 }}>
@@ -59,7 +59,7 @@ export function ListItem({ title, subtitle, icon, iconColor, left, right, onPres
         ) : null}
       </View>
       {right}
-      {chevron ? <Icon name="chevron-forward" size={16} color="textSubtle" /> : null}
+      {chevron ? <Icon name="chevron-forward" size={18} color="border" /> : null}
     </>
   );
   if (!onPress && !onLongPress) return <View style={styles.listItem}>{content}</View>;
@@ -132,13 +132,12 @@ export function Chip({ label, selected, onPress, icon, color }: ChipProps) {
         styles.chip,
         {
           borderRadius: radius.pill,
-          backgroundColor: selected ? accent : pressed ? colors.surfacePressed : colors.surface,
-          borderColor: selected ? accent : colors.border,
+          backgroundColor: selected ? accent : pressed ? colors.surfacePressed : colors.surfaceAlt,
         },
       ]}
     >
       {icon ? <Icon name={icon} size={14} color={selected ? colors.primaryText : colors.textMuted} /> : null}
-      <Text variant="caption" weight="600" style={{ color: selected ? colors.primaryText : colors.text }}>
+      <Text variant="caption" weight={selected ? '600' : '400'} style={{ color: selected ? colors.primaryText : colors.text }}>
         {label}
       </Text>
     </Pressable>
@@ -157,9 +156,9 @@ export function ChipGroup<T extends string>({ options, value, onChange }: { opti
 }
 
 export function Segmented<T extends string>({ options, value, onChange }: { options: { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
-  const { colors, radius } = useTheme();
+  const { colors, dark } = useTheme();
   return (
-    <View style={[styles.segmented, { backgroundColor: colors.surfaceAlt, borderRadius: radius.pill }]} accessibilityRole="tablist">
+    <View style={[styles.segmented, continuous, { backgroundColor: dark ? colors.surfaceAlt : colors.surfacePressed }]} accessibilityRole="tablist">
       {options.map((o) => {
         const active = o.value === value;
         return (
@@ -171,9 +170,13 @@ export function Segmented<T extends string>({ options, value, onChange }: { opti
               haptics.tap();
               onChange(o.value);
             }}
-            style={[styles.segment, { borderRadius: radius.pill, backgroundColor: active ? colors.surface : 'transparent' }]}
+            style={[
+              styles.segment,
+              continuous,
+              active ? [{ backgroundColor: dark ? colors.surfacePressed : colors.surface }, styles.segmentActive] : null,
+            ]}
           >
-            <Text variant="caption" weight={active ? '700' : '500'} color={active ? 'text' : 'textMuted'} numberOfLines={1}>
+            <Text variant="small" weight={active ? '600' : '500'} color="text" numberOfLines={1}>
               {o.label}
             </Text>
           </Pressable>
@@ -234,8 +237,8 @@ export function Avatar({ name, size = 40 }: { name: string; size?: number }) {
     .map((p) => p[0]!.toUpperCase())
     .join('');
   return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' }}>
-      <Text variant="bodyStrong" color="primary" style={{ fontSize: size * 0.38 }}>
+    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors.textSubtle, alignItems: 'center', justifyContent: 'center' }}>
+      <Text variant="bodyStrong" style={{ fontSize: size * 0.4, color: colors.surface }}>
         {initials || '?'}
       </Text>
     </View>
@@ -253,7 +256,7 @@ export function Fab({ icon = 'add', label, onPress, bottom = 100 }: { icon?: Ico
         haptics.light();
         onPress();
       }}
-      style={({ pressed }) => [styles.fab, { bottom, backgroundColor: pressed ? colors.primaryPressed : colors.primary }]}
+      style={({ pressed }) => [styles.fab, elevation.raised, { bottom, backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
     >
       <Icon name={icon} size={26} color="primaryText" />
     </Pressable>
@@ -275,21 +278,22 @@ export function Checkbox({ checked, onToggle, label, color }: { checked: boolean
       }}
       style={[styles.checkbox, { borderColor: checked ? c : colors.textSubtle, backgroundColor: checked ? c : 'transparent' }]}
     >
-      {checked ? <Icon name="checkmark" size={16} color="primaryText" /> : null}
+      {checked ? <Icon name="checkmark" size={15} color="#FFFFFF" /> : null}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  section: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 24, marginBottom: 10 },
-  listItem: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 10, paddingHorizontal: 4 },
-  listIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, alignSelf: 'flex-start' },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 36, borderWidth: 1 },
-  segmented: { flexDirection: 'row', padding: 4, gap: 4 },
-  segment: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 40, paddingHorizontal: 8 },
-  fab: { position: 'absolute', right: 20, width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center', elevation: 6, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 12, shadowOffset: { width: 0, height: 6 } },
-  checkbox: { width: 26, height: 26, borderRadius: 8, borderWidth: 2, alignItems: 'center', justifyContent: 'center', minWidth: 26 },
+  section: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 28, marginBottom: 7, paddingHorizontal: 16 },
+  listItem: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 50, paddingVertical: 8, paddingHorizontal: 4 },
+  listIcon: { width: 30, height: 30, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
+  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, alignSelf: 'flex-start' },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 34 },
+  segmented: { flexDirection: 'row', padding: 2, borderRadius: 9 },
+  segment: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 32, paddingHorizontal: 8, borderRadius: 7 },
+  segmentActive: { shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+  fab: { position: 'absolute', right: 20, width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
+  checkbox: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', minWidth: 24 },
 });
 
 export const MIN_TOUCH_SIZE = MIN_TOUCH;

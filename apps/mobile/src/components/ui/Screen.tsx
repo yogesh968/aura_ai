@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import {
   KeyboardAvoidingView,
+  Pressable,
   Platform,
   RefreshControl,
   ScrollView,
@@ -12,7 +13,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/theme/ThemeProvider';
-import { IconButton } from './Button';
+import { HIT_SLOP } from '@/theme/tokens';
+import { haptics } from '@/lib/haptics';
+import { Icon } from './Icon';
 import { Text } from './Text';
 import { OfflineBanner } from './States';
 
@@ -48,7 +51,7 @@ export function Screen({
 }: ScreenProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const bottomPad = (tabBarInset ? 96 : 24) + (footer ? 0 : insets.bottom);
+  const bottomPad = (tabBarInset ? 84 : 24) + (footer ? 0 : insets.bottom);
   const inner = scroll ? (
     <ScrollView
       keyboardShouldPersistTaps="handled"
@@ -90,31 +93,61 @@ export interface ScreenHeaderProps {
   large?: boolean;
 }
 
-/** In-screen header (native headers are hidden app-wide for a consistent look). */
+/**
+ * iOS-style navigation bar (native headers are hidden app-wide for a consistent look):
+ * "< Back" on the left, centered inline title, actions on the right, optional large title.
+ */
 export function ScreenHeader({ title, subtitle, back = true, onBack, right, large }: ScreenHeaderProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const goBack = onBack ?? (() => (router.canGoBack() ? router.back() : router.replace('/')));
   return (
-    <View style={[styles.header, { paddingTop: insets.top + 4, backgroundColor: colors.bg }]}>
+    <View
+      style={[
+        { paddingTop: insets.top, backgroundColor: colors.bg },
+        !large ? { borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth } : null,
+      ]}
+    >
       <View style={styles.headerRow}>
-        {back ? (
-          <IconButton icon="chevron-back" label="Go back" onPress={onBack ?? (() => (router.canGoBack() ? router.back() : router.replace('/')))} />
-        ) : (
-          <View style={{ width: 8 }} />
-        )}
-        <View style={{ flex: 1 }}>
-          {!large ? (
-            <Text variant="heading" numberOfLines={1} accessibilityRole="header">
-              {title}
-            </Text>
+        <View style={styles.headerSide}>
+          {back ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              hitSlop={HIT_SLOP}
+              onPress={() => {
+                haptics.tap();
+                goBack();
+              }}
+              style={({ pressed }) => [styles.back, { opacity: pressed ? 0.4 : 1 }]}
+            >
+              <Icon name="chevron-back" size={28} color="primary" />
+              <Text variant="body" color="primary" style={{ marginLeft: -4 }}>
+                Back
+              </Text>
+            </Pressable>
           ) : null}
         </View>
-        <View style={styles.headerRight}>{right}</View>
+        <View style={styles.headerTitle} pointerEvents="none">
+          {!large ? (
+            <>
+              <Text variant="subheading" numberOfLines={1} accessibilityRole="header" align="center">
+                {title}
+              </Text>
+              {subtitle ? (
+                <Text variant="small" color="textMuted" numberOfLines={1} align="center">
+                  {subtitle}
+                </Text>
+              ) : null}
+            </>
+          ) : null}
+        </View>
+        <View style={[styles.headerSide, styles.headerRight]}>{right}</View>
       </View>
       {large ? (
-        <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
-          <Text variant="title" accessibilityRole="header">
+        <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+          <Text variant="display" accessibilityRole="header">
             {title}
           </Text>
           {subtitle ? (
@@ -123,10 +156,6 @@ export function ScreenHeader({ title, subtitle, back = true, onBack, right, larg
             </Text>
           ) : null}
         </View>
-      ) : subtitle ? (
-        <Text variant="caption" color="textMuted" style={{ paddingHorizontal: 56, marginTop: -6, paddingBottom: 6 }} numberOfLines={1}>
-          {subtitle}
-        </Text>
       ) : null}
     </View>
   );
@@ -134,9 +163,11 @@ export function ScreenHeader({ title, subtitle, back = true, onBack, right, larg
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  padded: { paddingHorizontal: 20, paddingTop: 8 },
-  paddedX: { paddingHorizontal: 20 },
-  header: { paddingBottom: 4 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, minHeight: 52, gap: 4 },
-  headerRight: { flexDirection: 'row', alignItems: 'center' },
+  padded: { paddingHorizontal: 16, paddingTop: 8 },
+  paddedX: { paddingHorizontal: 16 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, minHeight: 48 },
+  headerSide: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  headerTitle: { flex: 2, alignItems: 'center', justifyContent: 'center' },
+  headerRight: { justifyContent: 'flex-end' },
+  back: { flexDirection: 'row', alignItems: 'center', minHeight: 48, paddingRight: 8 },
 });

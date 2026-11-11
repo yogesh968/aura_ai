@@ -32,10 +32,8 @@ export function EmptyState({ icon, title, body, actionLabel, onAction, compact }
   const { colors } = useTheme();
   return (
     <View style={[styles.center, { paddingVertical: compact ? 24 : 56, paddingHorizontal: 24 }]}>
-      <View style={[styles.iconWrap, { backgroundColor: colors.primarySoft }]}>
-        <Icon name={icon} size={28} color="primary" />
-      </View>
-      <Text variant="subheading" align="center" style={{ marginTop: 14 }}>
+      <Icon name={icon} size={52} color={colors.textSubtle} />
+      <Text variant="heading" weight="700" align="center" style={{ marginTop: 12 }}>
         {title}
       </Text>
       {body ? (
@@ -43,7 +41,7 @@ export function EmptyState({ icon, title, body, actionLabel, onAction, compact }
           {body}
         </Text>
       ) : null}
-      {actionLabel && onAction ? <Button title={actionLabel} onPress={onAction} size="sm" variant="soft" style={{ marginTop: 16 }} /> : null}
+      {actionLabel && onAction ? <Button title={actionLabel} onPress={onAction} size="sm" variant="ghost" style={{ marginTop: 8 }} /> : null}
     </View>
   );
 }
@@ -95,6 +93,5 @@ export function StaleBanner({ cachedAt }: { cachedAt: string | null | undefined 
 
 const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center' },
-  iconWrap: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
   banner: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 8 },
 });

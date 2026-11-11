@@ -4,6 +4,7 @@ import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { useTheme } from '@/theme/ThemeProvider';
+import { continuous, elevation } from '@/theme/tokens';
 import { useToastStore } from '@/lib/toast';
 import { formatDateTime, formatTime, relativeDay } from '@/lib/format';
 import { haptics } from '@/lib/haptics';
@@ -15,20 +16,25 @@ import { Text } from './Text';
 
 /** Bottom sheet built on Modal (back button and scrim dismiss). */
 export function Sheet({ visible, onClose, title, children, footer }: { visible: boolean; onClose: () => void; title?: string; children: ReactNode; footer?: ReactNode }) {
-  const { colors, radius } = useTheme();
+  const { colors, radius, dark } = useTheme();
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: colors.overlay }]} onPress={onClose} accessibilityLabel="Close" accessibilityRole="button" />
       <View style={styles.sheetWrap} pointerEvents="box-none">
-        <View style={[styles.sheet, { backgroundColor: colors.surface, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, paddingBottom: insets.bottom + 12 }]}>
+        <View style={[styles.sheet, continuous, { backgroundColor: dark ? colors.surface : colors.bg, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, paddingBottom: insets.bottom + 12 }]}>
           <View style={[styles.grabber, { backgroundColor: colors.border }]} />
           {title ? (
             <View style={styles.sheetHeader}>
-              <Text variant="heading" style={{ flex: 1 }} accessibilityRole="header">
+              <View style={styles.sheetSide} />
+              <Text variant="subheading" align="center" numberOfLines={1} style={{ flex: 1 }} accessibilityRole="header">
                 {title}
               </Text>
-              <IconButton icon="close" label="Close" onPress={onClose} />
+              <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} hitSlop={12} style={({ pressed }) => [styles.sheetSide, { opacity: pressed ? 0.4 : 1 }]}>
+                <Text variant="bodyStrong" color="primary">
+                  Done
+                </Text>
+              </Pressable>
             </View>
           ) : null}
           <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 520 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8 }}>
@@ -64,11 +70,11 @@ export function SelectSheet<T extends string>({ visible, onClose, title, options
               onSelect(o.value);
               onClose();
             }}
-            style={({ pressed }) => [styles.option, { backgroundColor: pressed ? colors.surfacePressed : 'transparent' }]}
+            style={({ pressed }) => [styles.option, { backgroundColor: pressed ? colors.surfacePressed : colors.surface }]}
           >
             {o.icon ? <Icon name={o.icon} size={20} color={active ? 'primary' : 'textMuted'} /> : null}
             <View style={{ flex: 1 }}>
-              <Text variant="body" weight={active ? '700' : '400'} color={active ? 'primary' : 'text'}>
+              <Text variant="body">
                 {o.label}
               </Text>
               {o.description ? (
@@ -213,7 +219,7 @@ export function PermissionCard({
 export function ToastHost() {
   const toasts = useToastStore((s) => s.toasts);
   const dismiss = useToastStore((s) => s.dismiss);
-  const { colors, radius } = useTheme();
+  const { colors, radius, dark } = useTheme();
   const insets = useSafeAreaInsets();
   const latest = toasts[toasts.length - 1];
   useEffect(() => {
@@ -226,10 +232,10 @@ export function ToastHost() {
           <View
             accessibilityRole="alert"
             accessibilityLiveRegion="polite"
-            style={[styles.toast, { borderRadius: radius.md, backgroundColor: t.kind === 'error' ? colors.danger : colors.text }]}
+            style={[styles.toast, continuous, elevation.raised, { borderRadius: radius.pill, backgroundColor: dark ? colors.surfaceAlt : colors.surface }]}
           >
-            <Icon name={t.kind === 'error' ? 'alert-circle' : t.kind === 'success' ? 'checkmark-circle' : 'information-circle'} size={18} color={colors.bg} />
-            <Text variant="caption" style={{ color: colors.bg, flex: 1 }}>
+            <Icon name={t.kind === 'error' ? 'alert-circle' : t.kind === 'success' ? 'checkmark-circle' : 'information-circle'} size={20} color={t.kind === 'error' ? 'danger' : t.kind === 'success' ? 'success' : 'primary'} />
+            <Text variant="caption" weight="500" style={{ color: colors.text, flex: 1 }}>
               {t.message}
             </Text>
             {t.action ? (
@@ -241,7 +247,7 @@ export function ToastHost() {
                 }}
                 hitSlop={12}
               >
-                <Text variant="caption" weight="700" style={{ color: colors.bg, textDecorationLine: 'underline' }}>
+                <Text variant="caption" weight="600" color="primary">
                   {t.action.label}
                 </Text>
               </Pressable>
@@ -256,8 +262,9 @@ export function ToastHost() {
 const styles = StyleSheet.create({
   sheetWrap: { flex: 1, justifyContent: 'flex-end' },
   sheet: { paddingTop: 8 },
-  grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, marginBottom: 8 },
-  sheetHeader: { flexDirection: 'row', alignItems: 'center', paddingLeft: 20, paddingRight: 8 },
-  option: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingHorizontal: 8, borderRadius: 12 },
-  toast: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12 },
+  grabber: { alignSelf: 'center', width: 36, height: 5, borderRadius: 2.5, marginBottom: 6 },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, minHeight: 48, marginBottom: 4 },
+  sheetSide: { width: 64, alignItems: 'flex-end', justifyContent: 'center', minHeight: 48 },
+  option: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 50, paddingHorizontal: 16, borderRadius: 12, marginBottom: 2 },
+  toast: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 18, paddingVertical: 12 },
 });
